@@ -106,10 +106,7 @@ For ablation experiments:
 
 - Xavier normal initialization with layer-specific gains (0.8 for embeddings, 0.6 for predictors)
 - Adam optimizer with β₁=0.9, β₂=0.95, weight decay 1e-5
-- Cosine annealing learning rate schedule
 - Gradient clipping (max norm 1.0)
-- Label smoothing (0.1) for event type prediction
-- Multi-layer numerical stability protections for training robustness
 
 Note: The Retweet dataset is configured with lr=1e-2 as specified in the paper, but during execution, the code automatically adjusts it to 1e-3 (0.1× reduction, which matches the config set in Tpaper able) for numerical stability. This is a necessary engineering adjustment to prevent NaN errors during training.
 
