@@ -1,10 +1,12 @@
 # Adaptive Mamba Hawkes Process (A-MHP)
 
-Code for WWW 2026 submission: "Mamba Hawkes Process for Event Sequence Modeling"
+Code for our WWW 2026 paper: "Mamba Hawkes Process for Event Sequence Modeling" (accepted)
 
 ## Overview
 
-This repository implements A-MHP and MHP.
+This repository implements A-MHP and MHP. This is an **initial release** intended for research reproduction. The current codebase includes a vendored copy of the **Mamba** implementation (and a Transformer module) and does not yet provide a fully streamlined quick-start interface.
+
+At present, **A-MHP** is organized as the main pipeline at the repository root, while the **MHP baseline** resides in a separate subdirectory. In a future update, we plan to **clean up dependencies** and **unify both models under a single entry point**, selectable via a CLI option such as `--model {amhp,mhp}`.
 
 ## Requirements
 
@@ -22,7 +24,7 @@ Download datasets from the [Neural Hawkes Process repository](https://drive.goog
 
 Place the downloaded folders in a directory named `data/`:
 ```
-mhp/
+<repo_root>/
 ├── data/
 │   ├── data_bookorder/
 │   ├── data_so/
@@ -108,7 +110,7 @@ For ablation experiments:
 - Adam optimizer with β₁=0.9, β₂=0.95, weight decay 1e-5
 - Gradient clipping (max norm 1.0)
 
-Note: The Retweet dataset is configured with lr=1e-2 as specified in the paper, but during execution, the code automatically adjusts it to 1e-3 (0.1× reduction, which matches the config set in Tpaper able) for numerical stability. This is a necessary engineering adjustment to prevent NaN errors during training.
+Note: The Retweet dataset is configured with lr=1e-2 as specified in the paper, but during execution, the code automatically adjusts it to 1e-3 (0.1× reduction, which matches the config set in paper table) for numerical stability. This is a necessary engineering adjustment to prevent NaN errors during training.
 
 ## Citation
 
