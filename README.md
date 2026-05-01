@@ -114,8 +114,24 @@ Note: The Retweet dataset is configured with lr=1e-2 as specified in the paper, 
 
 ## Citation
 
-If you use this code, please cite our WWW 2026 paper (citation will be added upon publication).
+If you use this code, please cite our paper by:
+
+@inproceedings{mhp2026,
+  author = {Dai, Shan and Shen, Yuyang and Liang, Yuyang and Ma, Chenhao and Gao, Anningzhe},
+  title = {Mamba Hawkes Process for Event Sequence Modeling},
+  year = {2026},
+  isbn = {9798400723070},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  doi = {10.1145/3774904.3792583},
+  booktitle = {Proceedings of the ACM Web Conference 2026},
+  pages = {7464–7473},
+  numpages = {10},
+  keywords = {asynchronous event, hawkes process, state space model, time-varying state, long-term dependency},
+  location = {United Arab Emirates},
+  series = {WWW '26}
+}
 
 ## License
 
-This code is released for academic research use.
+This code is released under the MIT License.
