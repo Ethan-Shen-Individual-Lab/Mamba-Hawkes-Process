@@ -1,6 +1,6 @@
 # Adaptive Mamba Hawkes Process (A-MHP)
 
-Code for our WWW 2026 paper: [Mamba Hawkes Process for Event Sequence Modeling](https://dl.acm.org/doi/abs/10.1145/3774904.3792583)
+Code for our WWW 2026 paper: [Mamba Hawkes Process for Event Sequence Modeling](https://dl.acm.org/doi/abs/10.1145/3774904.3792583).
 
 ## Overview
 
