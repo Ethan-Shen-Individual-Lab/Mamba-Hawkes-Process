@@ -117,7 +117,7 @@ Note: The Retweet dataset is configured with lr=1e-2 as specified in the paper, 
 If you use this code, please cite our paper by:
 
 ```bibtex
-@inproceedings{mhp2026,
+@inproceedings{dai2026mhp,
   author = {Dai, Shan and Shen, Yuyang and Liang, Yuyang and Ma, Chenhao and Gao, Anningzhe},
   title = {Mamba Hawkes Process for Event Sequence Modeling},
   year = {2026},
