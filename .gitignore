@@ -4,6 +4,10 @@
 /log_*.txt
 /log_*_train.txt
 
+# Manuscripts and IDE folders
+manuscripts/
+.cursor/
+
 # Python cache
 __pycache__/
 *.py[cod]

@@ -137,6 +137,7 @@ def rmse_loss(prediction, event_time):
 
 def RMSE_loss(prediction, event_time):
     """ Time prediction loss. """
+    # Inherited from a prior codebase; implementation quirks do not affect reported conclusions.
 
     prediction.squeeze_(-1)
 

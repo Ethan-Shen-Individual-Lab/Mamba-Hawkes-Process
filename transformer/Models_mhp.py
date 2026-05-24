@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import transformer.Constants as Constants
 from transformer.Layers import EncoderLayer
 from transformer.mamba import MambaLayer, MambaEncoder
-from transformer.mambapy import mamba
+from transformer.mambapy import mamba_mhp as mamba
 
 
 

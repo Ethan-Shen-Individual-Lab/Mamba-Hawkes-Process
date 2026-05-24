@@ -17,15 +17,11 @@ from transformer.Models import Transformer, Mamba_pure
 from transformer.mamba import Mamba
 from tqdm import tqdm
 
-# Import with error handling for cloud environment
-try:
-    from transformer.mambapy import mamba
-    from transformer.mambapy.mamba import MambaConfig
-except ImportError as e:
-    print(f"Import warning: {e}")
-    print("Attempting alternative import...")
-    import transformer.mambapy.mamba as mamba
-    from transformer.mambapy.mamba import MambaConfig
+from transformer.mambapy import mamba
+from transformer.mambapy.mamba import MambaConfig
+
+from transformer.Models_mhp import Transformer as Transformer_mhp, Mamba_pure as Mamba_pure_mhp
+from transformer.mambapy.mamba_mhp import MambaConfig as MambaConfig_mhp
 
 def uni(arr):
     n = len(arr)
@@ -601,11 +597,257 @@ def run_single_experiment(dataset_name, config, model_type='Mamba_pure', epochs=
         import traceback
         traceback.print_exc()
 
+def mhp_train_epoch(model, training_data, optimizer, pred_loss_func, opt):
+    """ Epoch operation in training phase. """
+
+    model.train()
+
+    total_event_ll = 0  # cumulative event log-likelihood
+    total_time_se = 0  # cumulative time prediction squared-error
+    total_event_rate = 0  # cumulative number of correct prediction
+    total_num_event = 0  # number of total events
+    total_num_pred = 0  # number of predictions
+    for batch in tqdm(training_data, mininterval=2,
+                      desc='  - (Training)   ', leave=False):
+        """ prepare data """
+        event_time, time_gap, event_type = map(lambda x: x.to(opt.device), batch)
+
+        """ forward """
+        optimizer.zero_grad()
+
+        enc_out, prediction = model(event_type, event_time)
+
+        """ backward """
+        # negative log-likelihood
+        event_ll, non_event_ll = Utils.log_likelihood(model, enc_out, event_time, event_type, opt.model_type)
+        event_loss = -torch.sum(event_ll - non_event_ll)
+
+        # type prediction
+        pred_loss, pred_num_event = Utils.type_loss(prediction[0], event_type, pred_loss_func)
+
+        # time prediction
+        se = Utils.time_loss(prediction[1], event_time)
+
+        # SE is usually large, scale it to stabilize training
+        scale_time_loss = 10000
+        scale_event_loss = 1.5
+        loss = event_loss + pred_loss / scale_event_loss + se / scale_time_loss
+        #print(event_loss, pred_loss, se)
+        #loss = pred_loss
+        #loss = 1000*se
+        loss.backward()
+
+        """ update parameters """
+        optimizer.step()
+
+        """ note keeping """
+        total_event_ll += -event_loss.item()
+        total_time_se += se.item()
+        total_event_rate += pred_num_event.item()
+        total_num_event += event_type.ne(Constants.PAD).sum().item()
+        # we do not predict the first event
+        total_num_pred += event_type.ne(Constants.PAD).sum().item() - event_time.shape[0]
+
+    rmse = np.sqrt(total_time_se / total_num_pred)
+    return total_event_ll / total_num_event, total_event_rate / total_num_pred, rmse
+
+
+def mhp_eval_epoch(model, validation_data, pred_loss_func, opt):
+    """ Epoch operation in evaluation phase. """
+
+    model.eval()
+
+    total_event_ll = 0  # cumulative event log-likelihood
+    total_time_se = 0  # cumulative time prediction squared-error
+    total_event_rate = 0  # cumulative number of correct prediction
+    total_num_event = 0  # number of total events
+    total_num_pred = 0  # number of predictions
+    with torch.no_grad():
+        for batch in tqdm(validation_data, mininterval=2,
+                          desc='  - (Validation) ', leave=False):
+            """ prepare data """
+            event_time, time_gap, event_type = map(lambda x: x.to(opt.device), batch)
+
+            """ forward """
+            enc_out, prediction = model(event_type, event_time)
+
+            """ compute loss """
+            event_ll, non_event_ll = Utils.log_likelihood(model, enc_out, event_time, event_type, opt.model_type)
+            event_loss = -torch.sum(event_ll - non_event_ll)
+            _, pred_num = Utils.type_loss(prediction[0], event_type, pred_loss_func)
+            se = Utils.RMSE_loss(prediction[1], event_time)
+
+            """ note keeping """
+            total_event_ll += -event_loss.item()
+            total_time_se += se.item()
+            total_event_rate += pred_num.item()
+            total_num_event += event_type.ne(Constants.PAD).sum().item()
+            total_num_pred += event_type.ne(Constants.PAD).sum().item() - event_time.shape[0]
+
+    rmse = np.sqrt(total_time_se / total_num_pred)
+    return total_event_ll / total_num_event, total_event_rate / total_num_pred, rmse
+
+
+def mhp_train(model, training_data, validation_data, optimizer, scheduler, pred_loss_func, opt, log_file):
+    """ Start training. """
+
+    valid_event_losses = []  # validation log-likelihood
+    valid_pred_losses = []  # validation event type prediction accuracy
+    valid_rmse = []  # validation event time prediction RMSE
+    for epoch_i in range(opt.epoch):
+        epoch = epoch_i + 1
+        print('[ Epoch', epoch, ']')
+
+        start = time.time()
+        train_event, train_type, train_time = mhp_train_epoch(model, training_data, optimizer, pred_loss_func, opt)
+        print('  - (Training)    loglikelihood: {ll: 8.5f}, '
+              'accuracy: {type: 8.5f}, RMSE: {rmse: 8.5f}, '
+              'elapse: {elapse:3.3f} min'
+              .format(ll=train_event, type=train_type, rmse=train_time, elapse=(time.time() - start) / 60))
+
+        #for name,parameters in model.named_parameters():
+        #    print(name,':',parameters.size())
+        
+        embed = torch.abs(model.encoder.event_emb.weight)
+        #print(torch.sum(embed))
+
+        #print(torch.sum(embed, -1))
+        
+
+
+
+
+        start = time.time()
+        valid_event, valid_type, valid_time = mhp_eval_epoch(model, validation_data, pred_loss_func, opt)
+        print('  - (Testing)     loglikelihood: {ll: 8.5f}, '
+              'accuracy: {type: 8.5f}, RMSE: {rmse: 8.5f}, '
+              'elapse: {elapse:3.3f} min'
+              .format(ll=valid_event, type=valid_type, rmse=valid_time, elapse=(time.time() - start) / 60))
+
+        valid_event_losses += [valid_event]
+        valid_pred_losses += [valid_type]
+        valid_rmse += [valid_time]
+        print('  - [Info] Maximum ll: {event: 8.5f}, '
+              'Maximum accuracy: {pred: 8.5f}, Minimum RMSE: {rmse: 8.5f}'
+              .format(event=max(valid_event_losses), pred=max(valid_pred_losses), rmse=min(valid_rmse)))
+
+        # logging
+        with open(log_file, 'a') as f:
+            f.write('{epoch}, {ll: 8.5f}, {acc: 8.5f}, {rmse: 8.5f}\n'
+                    .format(epoch=epoch, ll=valid_event, acc=valid_type, rmse=valid_time))
+
+        scheduler.step()
+    with open(log_file, 'a') as f:
+        f.write('{epoch}, {ll: 8.5f}, {acc: 8.5f}, {rmse: 8.5f}\n'
+            .format(epoch=100, ll=max(valid_event_losses), acc=max(valid_pred_losses), rmse=min(valid_rmse)))
+
+
+def mhp_run_single_experiment(dataset_name, config, model_type='Mamba_pure', epochs=40):
+    """ Run a single MHP experiment with given configuration """
+
+    print(f"\n{'='*60}")
+    print(f"Running experiment: {dataset_name} with MHP {model_type}")
+    print(f"Dataset: {config['file']}")
+    print(f"{'='*60}")
+
+    torch.manual_seed(0)
+
+    class Opt:
+        pass
+
+    opt = Opt()
+    opt.data = config['file']
+    opt.epoch = epochs
+    opt.batch_size = config['batchsize']
+    opt.d_model = config['d_model']
+    opt.d_rnn = 256
+    opt.d_inner_hid = config['d_inner']
+    opt.d_k = config['d_k']
+    opt.d_v = config['d_v']
+    opt.n_head = config['n_head']
+    opt.n_layers = config['n_layers']
+    opt.dropout = 0.1
+    opt.lr = config['lr']
+    opt.smooth = 0
+    opt.test_type = 'OOD'
+    opt.model_type = model_type
+    opt.miss_rate = 0
+    opt.test_rate = 70
+    opt.length_test_type = 5
+    opt.device = torch.device('cuda')
+
+    log_file = f'log_{dataset_name}_MHP_{model_type}_OOD.txt'
+
+    with open(log_file, 'w') as f:
+        f.write('Epoch, Log-likelihood, Accuracy, RMSE\n')
+
+        print('[Info] parameters: {}'.format(opt))
+
+    try:
+        trainloader, testloader, num_types = prepare_dataloader(opt, 1e-2, 0)
+
+        if model_type == 'Mamba_pure':
+            config_mhp = MambaConfig_mhp(d_model=opt.d_model, n_layers=4)
+            model = Mamba_pure_mhp(
+            config=config_mhp,
+            num_types=num_types,
+            d_model=opt.d_model,
+            d_rnn=opt.d_rnn,
+            d_inner=opt.d_inner_hid,
+            n_layers=opt.n_layers,
+            n_head=opt.n_head,
+            d_k=opt.d_k,
+            d_v=opt.d_v,
+            dropout=opt.dropout,
+            model_type=opt.model_type
+        )
+        else:
+            config_mhp = MambaConfig_mhp(d_model=opt.d_model, n_layers=1)
+            model = Transformer_mhp(
+            config=config_mhp,
+            num_types=num_types,
+            d_model=opt.d_model,
+            d_rnn=opt.d_rnn,
+            d_inner=opt.d_inner_hid,
+            n_layers=opt.n_layers,
+            n_head=opt.n_head,
+            d_k=opt.d_k,
+            d_v=opt.d_v,
+            dropout=opt.dropout,
+            model_type=opt.model_type
+        )
+        model.to(opt.device)
+
+        optimizer = optim.Adam(filter(lambda x: x.requires_grad, model.parameters()),
+                            opt.lr, betas=(0.9, 0.999), eps=1e-05)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, 10, gamma=0.5)
+
+        if opt.smooth > 0:
+            pred_loss_func = Utils.LabelSmoothingLoss(opt.smooth, num_types, ignore_index=-1)
+        else:
+            pred_loss_func = nn.CrossEntropyLoss(ignore_index=-1, reduction='none')
+
+        num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print('[Info] Number of parameters: {}'.format(num_params))
+
+        mhp_train(model, trainloader, testloader, optimizer, scheduler, pred_loss_func, opt, log_file)
+
+        print(f"Experiment {dataset_name} completed successfully!")
+
+    except Exception as e:
+        print(f"Error in experiment {dataset_name}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     """ Main function - Run experiments with optional dataset selection """
     
     # Add command line argument parsing
-    parser = argparse.ArgumentParser(description='A-MHP Experiments')
+    parser = argparse.ArgumentParser(description='A-MHP / MHP Experiments')
+    parser.add_argument('--model', type=str, default='amhp',
+                       choices=['amhp', 'mhp'],
+                       help='Model to run: amhp (Adaptive MHP) or mhp (baseline MHP)')
     parser.add_argument('--dataset', type=str, default='all', 
                        choices=['all', 'Financial', 'SO', 'Synthetic', 'Retweet', 'Mimic'],
                        help='Specify dataset to run (default: all)')
@@ -615,6 +857,8 @@ def main():
                        help='Time loss weight (default: 1e-4)')
     parser.add_argument('--fold', type=int, default=None,
                        help='Cross-validation fold number (1-5). If not specified, uses default fold.')
+    parser.add_argument('--epochs', type=int, default=40,
+                       help='Number of training epochs (default: 40)')
     args = parser.parse_args()
     
     print("Starting A-MHP (Adaptive Mamba Hawkes Process) Experiments")
@@ -661,8 +905,11 @@ def main():
             print(f"\nProgress: {current_exp}/{total_experiments}")
             
             try:
-                run_single_experiment(dataset_name, config, model_type, epochs=40, 
-                                    beta=args.beta, gamma=args.gamma)
+                if args.model == 'mhp':
+                    mhp_run_single_experiment(dataset_name, config, model_type, epochs=args.epochs)
+                else:
+                    run_single_experiment(dataset_name, config, model_type, epochs=args.epochs,
+                                        beta=args.beta, gamma=args.gamma)
             except KeyboardInterrupt:
                 print("\nExperiments interrupted by user")
                 return
@@ -675,8 +922,11 @@ def main():
     print("Check individual log files for results:")
     for dataset_name in experiment_configs.keys():
         for model_type in model_types:
-            print(f"- log_{dataset_name}_A-MHP_{model_type}_OOD.txt (test results)")
-            print(f"- log_{dataset_name}_A-MHP_{model_type}_OOD_train.txt (train results)")
+            if args.model == 'mhp':
+                print(f"- log_{dataset_name}_MHP_{model_type}_OOD.txt (test results)")
+            else:
+                print(f"- log_{dataset_name}_A-MHP_{model_type}_OOD.txt (test results)")
+                print(f"- log_{dataset_name}_A-MHP_{model_type}_OOD_train.txt (train results)")
     print(f"{'='*60}")
 
 

@@ -6,7 +6,7 @@ Code for our WWW 2026 paper: [Mamba Hawkes Process for Event Sequence Modeling](
 
 This repository implements A-MHP and MHP. This is an **initial release** intended for research reproduction. The current codebase includes a vendored copy of the **Mamba** implementation (and a Transformer module).
 
-At present, **A-MHP** is organized as the main pipeline at the repository root, while the **MHP baseline** resides in a separate subdirectory. In a future update, we plan to **clean up dependencies** and **unify both models under a single entry point**, selectable via a CLI option such as `--model {amhp,mhp}`.
+Both models are available under a single entry point, selectable via `--model {amhp,mhp}`.
 
 ## Requirements
 
@@ -33,7 +33,15 @@ Place the downloaded folders in a directory named `data/`:
 │   └── data_mimic/
 ├── Main.py
 ├── ablation.py
+├── Utils.py
+├── preprocess/
+│   └── Dataset.py
 └── transformer/
+    ├── Models.py
+    ├── Models_mhp.py
+    └── mambapy/
+        ├── mamba.py
+        └── mamba_mhp.py
 ```
 
 ## Running Experiments
@@ -59,6 +67,19 @@ Specify cross-validation fold (for Financial, SO, Mimic datasets):
 ```bash
 python Main.py --dataset SO --fold 1
 python Main.py --dataset Financial --fold 3 --beta 1.0 --gamma 1e-4
+```
+
+### Baseline Experiments (MHP)
+
+Run all datasets with the baseline MHP model:
+```bash
+python Main.py --model mhp
+```
+
+Run specific dataset:
+```bash
+python Main.py --model mhp --dataset SO
+python Main.py --model mhp --dataset Financial --fold 2
 ```
 
 ### Ablation Study
@@ -91,15 +112,12 @@ Key hyperparameters (all datasets use n_layers=4):
 
 Dataset-specific d_model and learning rates are specified in paper Table.
 
-## Baseline: MHP Model
-
-The `mhp_baseline/` directory contains the original MHP baseline implementation. To reproduce MHP results, navigate to that directory and modify the configuration settings in the main script as needed.
-
 ## Results
 
 Results are saved in log files:
-- `log_{dataset}_A-MHP_Mamba_pure_OOD.txt`: Test metrics per epoch
-- `log_{dataset}_A-MHP_Mamba_pure_OOD_train.txt`: Training metrics per epoch
+- `log_{dataset}_A-MHP_Mamba_pure_OOD.txt`: A-MHP test metrics per epoch
+- `log_{dataset}_A-MHP_Mamba_pure_OOD_train.txt`: A-MHP training metrics per epoch
+- `log_{dataset}_MHP_Mamba_pure_OOD.txt`: MHP test metrics per epoch
 
 For ablation experiments:
 - `log_{dataset}_Ablation_{variant}_OOD.txt` and corresponding `_train.txt` files
