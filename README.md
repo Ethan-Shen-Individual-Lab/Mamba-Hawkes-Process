@@ -122,14 +122,6 @@ Results are saved in log files:
 For ablation experiments:
 - `log_{dataset}_Ablation_{variant}_OOD.txt` and corresponding `_train.txt` files
 
-## Implementation Notes
-
-- Xavier normal initialization with layer-specific gains (0.8 for embeddings, 0.6 for predictors)
-- Adam optimizer with β₁=0.9, β₂=0.95, weight decay 1e-5
-- Gradient clipping (max norm 1.0)
-
-Note: The Retweet dataset is configured with lr=1e-2 as specified in the paper, but during execution, the code automatically adjusts it to 1e-3 (0.1× reduction, which matches the config set in paper table) for numerical stability. This is a necessary engineering adjustment to prevent NaN errors during training.
-
 ## Citation
 
 If you use this code, please cite our paper by:
