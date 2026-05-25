@@ -15,7 +15,8 @@ __pycache__/
 *.so
 
 # Logs and results
-results/
+results/*
+!results/.gitkeep
 log_*.txt
 *.log
 
