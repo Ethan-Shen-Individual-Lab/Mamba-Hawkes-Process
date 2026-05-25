@@ -15,7 +15,7 @@ Both models are available under a single entry point, selectable via `--model {a
 - CUDA 11.0+ (recommended)
 
 ```bash
-pip install torch numpy einops tqdm
+pip install -r requirements.txt
 ```
 
 ## Data Preparation
@@ -49,7 +49,7 @@ Place the downloaded folders in a directory named `data/`:
 
 ### Main Experiments (A-MHP)
 
-Run all datasets with default loss weights (β=1.0, γ=1e-4):
+Run all datasets with default settings (β=1.0, γ=1e-4, 40 epochs):
 ```bash
 python Main.py
 ```
@@ -59,9 +59,9 @@ Run specific dataset:
 python Main.py --dataset SO
 ```
 
-Specify custom loss weights:
+Specify custom loss weights and training epochs:
 ```bash
-python Main.py --dataset Financial --beta 1.0 --gamma 1e-4
+python Main.py --dataset Financial --beta 1.0 --gamma 1e-4 --epochs 40
 ```
 
 Specify cross-validation fold (for Financial, SO, Mimic datasets):
