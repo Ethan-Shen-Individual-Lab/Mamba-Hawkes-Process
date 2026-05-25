@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import os
 import pickle
 import time
 import torch
@@ -450,7 +451,8 @@ def run_ablation_experiment(dataset_name, config, ablation_mode, epochs=40, beta
     opt.gamma = gamma
 
     # Create log file name for ablation
-    log_file = f'log_{dataset_name}_Ablation_{ablation_mode}_OOD.txt'
+    os.makedirs('results', exist_ok=True)
+    log_file = f'results/log_{dataset_name}_Ablation_{ablation_mode}_OOD.txt'
 
     # Setup log file
     with open(log_file, 'w') as f:
@@ -598,8 +600,8 @@ def main():
     print("Check individual log files for results:")
     for ablation_mode in ablation_modes:
         for dataset_name in experiment_configs.keys():
-            print(f"- log_{dataset_name}_Ablation_{ablation_mode}_OOD.txt (test results)")
-            print(f"- log_{dataset_name}_Ablation_{ablation_mode}_OOD_train.txt (train results)")
+            print(f"- results/log_{dataset_name}_Ablation_{ablation_mode}_OOD.txt (test results)")
+            print(f"- results/log_{dataset_name}_Ablation_{ablation_mode}_OOD_train.txt (train results)")
     print(f"{'='*60}")
 
 

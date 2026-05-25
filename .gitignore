@@ -15,6 +15,7 @@ __pycache__/
 *.so
 
 # Logs and results
+results/
 log_*.txt
 *.log
 

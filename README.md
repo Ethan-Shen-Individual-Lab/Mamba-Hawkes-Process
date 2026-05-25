@@ -114,13 +114,13 @@ Dataset-specific d_model and learning rates are specified in paper Table.
 
 ## Results
 
-Results are saved in log files:
-- `log_{dataset}_A-MHP_Mamba_pure_OOD.txt`: A-MHP test metrics per epoch
-- `log_{dataset}_A-MHP_Mamba_pure_OOD_train.txt`: A-MHP training metrics per epoch
-- `log_{dataset}_MHP_Mamba_pure_OOD.txt`: MHP test metrics per epoch
+Results are saved in log files under `results/`:
+- `results/log_{dataset}_A-MHP_Mamba_pure_OOD.txt`: A-MHP test metrics per epoch
+- `results/log_{dataset}_A-MHP_Mamba_pure_OOD_train.txt`: A-MHP training metrics per epoch
+- `results/log_{dataset}_MHP_Mamba_pure_OOD.txt`: MHP test metrics per epoch
 
 For ablation experiments:
-- `log_{dataset}_Ablation_{variant}_OOD.txt` and corresponding `_train.txt` files
+- `results/log_{dataset}_Ablation_{variant}_OOD.txt` and corresponding `_train.txt` files
 
 ## Citation
 

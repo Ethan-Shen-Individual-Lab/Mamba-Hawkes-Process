@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import os
 import pickle
 import time
 import torch
@@ -506,7 +507,8 @@ def run_single_experiment(dataset_name, config, model_type='Mamba_pure', epochs=
     opt.gamma = gamma
 
     # Create log file name
-    log_file = f'log_{dataset_name}_A-MHP_{model_type}_OOD.txt'
+    os.makedirs('results', exist_ok=True)
+    log_file = f'results/log_{dataset_name}_A-MHP_{model_type}_OOD.txt'
 
     # Setup log file
     with open(log_file, 'w') as f:
@@ -776,7 +778,8 @@ def mhp_run_single_experiment(dataset_name, config, model_type='Mamba_pure', epo
     opt.length_test_type = 5
     opt.device = torch.device('cuda')
 
-    log_file = f'log_{dataset_name}_MHP_{model_type}_OOD.txt'
+    os.makedirs('results', exist_ok=True)
+    log_file = f'results/log_{dataset_name}_MHP_{model_type}_OOD.txt'
 
     with open(log_file, 'w') as f:
         f.write('Epoch, Log-likelihood, Accuracy, RMSE\n')
@@ -923,10 +926,10 @@ def main():
     for dataset_name in experiment_configs.keys():
         for model_type in model_types:
             if args.model == 'mhp':
-                print(f"- log_{dataset_name}_MHP_{model_type}_OOD.txt (test results)")
+                print(f"- results/log_{dataset_name}_MHP_{model_type}_OOD.txt (test results)")
             else:
-                print(f"- log_{dataset_name}_A-MHP_{model_type}_OOD.txt (test results)")
-                print(f"- log_{dataset_name}_A-MHP_{model_type}_OOD_train.txt (train results)")
+                print(f"- results/log_{dataset_name}_A-MHP_{model_type}_OOD.txt (test results)")
+                print(f"- results/log_{dataset_name}_A-MHP_{model_type}_OOD_train.txt (train results)")
     print(f"{'='*60}")
 
 
