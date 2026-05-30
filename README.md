@@ -8,7 +8,7 @@ This repository implements A-MHP and MHP. This is a **new release** intended for
 
 Both models are available under a single entry point, selectable via `--model {amhp,mhp}`.
 
-Training uses per-sequence loss aggregation before batch averaging, so the optimization objective stays aligned with the paper model while mini-batch width can be treated as a throughput parameter. Default batch sizes are unchanged; when GPU memory permits, pass `--batch_size` to run wider mini-batches and shorten experiment time.
+Per-sequence batch loss matches the paper; keep default batch sizes for reproduction, or use `--batch_size` for speed (fewer optimizer steps per epoch at the same `--epochs`).
 
 ## Requirements
 
@@ -83,12 +83,6 @@ Run specific dataset:
 ```bash
 python Main.py --model mhp --dataset SO
 python Main.py --model mhp --dataset Financial --fold 2
-```
-
-Optional batch size override (defaults match the paper; increase only if memory allows):
-```bash
-python Main.py --model mhp --dataset SO --batch_size 8
-python Main.py --dataset Financial --batch_size 4 --beta 1.0 --gamma 1e-4
 ```
 
 ### Ablation Study
