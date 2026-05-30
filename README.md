@@ -2,11 +2,15 @@
 
 Code for our WWW 2026 paper: [Mamba Hawkes Process for Event Sequence Modeling](https://dl.acm.org/doi/abs/10.1145/3774904.3792583).
 
+**Release v1.1.0**
+
 ## Overview
 
 This repository implements A-MHP and MHP. This is a **new release** intended for research reproduction. The current codebase includes a vendored copy of the **Mamba** implementation (and a Transformer module).
 
 Both models are available under a single entry point, selectable via `--model {amhp,mhp}`.
+
+Training uses per-sequence loss aggregation before batch averaging, so the optimization objective stays aligned with the paper model while mini-batch width can be treated as a throughput parameter. Default batch sizes are unchanged; when GPU memory permits, pass `--batch_size` to run wider mini-batches and shorten experiment time.
 
 ## Requirements
 
@@ -81,6 +85,12 @@ Run specific dataset:
 ```bash
 python Main.py --model mhp --dataset SO
 python Main.py --model mhp --dataset Financial --fold 2
+```
+
+Optional batch size override (defaults match the paper; increase only if memory allows):
+```bash
+python Main.py --model mhp --dataset SO --batch_size 8
+python Main.py --dataset Financial --batch_size 4 --beta 1.0 --gamma 1e-4
 ```
 
 ### Ablation Study
