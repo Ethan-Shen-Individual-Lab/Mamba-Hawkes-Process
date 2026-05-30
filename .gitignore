@@ -41,3 +41,4 @@ checkpoints/
 # Temporary files
 *.tmp
 *~
+backup/

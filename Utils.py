@@ -3,7 +3,57 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from transformer import Constants
 from transformer.Models import get_non_pad_mask
+
+
+def get_per_sequence_counts(event_type):
+    """Per-sequence event / prediction counts, shape (B,)."""
+    non_pad = event_type.ne(Constants.PAD).float()
+    num_events = non_pad.sum(dim=1).clamp(min=1)
+    num_type_pred = (num_events - 1).clamp(min=1)
+    num_time_gaps = (non_pad[:, 1:] * non_pad[:, :-1]).sum(dim=1).clamp(min=1)
+    return num_events, num_type_pred, num_time_gaps
+
+
+def batch_invariant_event_loss(event_ll, non_event_ll, event_type):
+    """Per-sequence mean NLL, averaged over the batch."""
+    num_events, _, _ = get_per_sequence_counts(event_type)
+    per_seq = -(event_ll - non_event_ll) / num_events
+    return per_seq.mean()
+
+
+def batch_invariant_type_loss(prediction, types, loss_func, event_type):
+    """Per-sequence mean type loss, averaged over the batch."""
+    truth = types[:, 1:] - 1
+    prediction = prediction[:, :-1, :]
+
+    if isinstance(loss_func, LabelSmoothingLoss):
+        loss = loss_func(prediction, truth)
+    else:
+        loss = loss_func(prediction.transpose(1, 2), truth)
+
+    _, num_type_pred, _ = get_per_sequence_counts(event_type)
+    per_seq = loss.sum(dim=1) / num_type_pred
+    return per_seq.mean()
+
+
+def batch_invariant_time_loss(prediction, event_time, event_type, scaling_factor=None):
+    """Per-sequence mean time loss, averaged over the batch."""
+    prediction = prediction.squeeze(-1).clone()
+    true = event_time[:, 1:] - event_time[:, :-1]
+    prediction = prediction[:, :-1]
+
+    if scaling_factor is not None:
+        prediction = prediction / scaling_factor.unsqueeze(1).expand_as(prediction)
+
+    diff = prediction - true
+    non_pad = event_type.ne(Constants.PAD).float()
+    valid = non_pad[:, 1:] * non_pad[:, :-1]
+    se = diff * diff * valid
+    _, _, num_time_gaps = get_per_sequence_counts(event_type)
+    per_seq = se.sum(dim=1) / num_time_gaps
+    return per_seq.mean()
 
 
 def softplus(x, beta):
@@ -104,8 +154,8 @@ def type_loss(prediction, types, loss_func):
 
 
 
-def time_loss(prediction, event_time, scaling_factor=None):
-    """ Time prediction loss. """
+def time_loss(prediction, event_time, event_type=None, scaling_factor=None):
+    """ Time prediction loss over valid inter-event gaps only. """
 
     prediction.squeeze_(-1)
 
@@ -117,8 +167,12 @@ def time_loss(prediction, event_time, scaling_factor=None):
     if scaling_factor is not None:
         prediction = prediction / scaling_factor.unsqueeze(1).expand_as(prediction)
 
-    # event time gap prediction
     diff = prediction - true
+    if event_type is not None:
+        non_pad = event_type.ne(Constants.PAD).float()
+        valid = non_pad[:, 1:] * non_pad[:, :-1]
+        diff = diff * valid
+
     se = torch.sum(diff * diff)
     return se
 
@@ -135,20 +189,23 @@ def rmse_loss(prediction, event_time):
     se = torch.mean(diff * diff)
     return torch.sqrt(se)
 
-def RMSE_loss(prediction, event_time):
-    """ Time prediction loss. """
-    # Inherited from a prior codebase; implementation quirks do not affect reported conclusions.
+def RMSE_loss(prediction, event_time, event_type=None):
+    """ Time prediction RMSE over valid positions only. """
 
     prediction.squeeze_(-1)
 
     true = event_time[:, 1:] - event_time[:, 0].unsqueeze(1)
-    prediction = torch.cumsum(prediction[:, :-1], dim = -1)
+    prediction = torch.cumsum(prediction[:, :-1], dim=-1)
 
-    # event time gap prediction
     diff = prediction - true
-    se = torch.mean(diff * diff)
+    if event_type is not None:
+        non_pad = event_type.ne(Constants.PAD).float()
+        valid = non_pad[:, 1:]
+        diff = diff * valid
+        se = torch.sum(diff * diff) / valid.sum().clamp(min=1)
+    else:
+        se = torch.mean(diff * diff)
     return torch.sqrt(se)
-
 
 class LabelSmoothingLoss(nn.Module):
     """

@@ -223,13 +223,17 @@ def train_epoch(model, training_data, optimizer, pred_loss_func, opt):
         """ backward """
         # negative log-likelihood
         event_ll, non_event_ll = Utils.log_likelihood(model, enc_out, event_time, event_type, opt.model_type)
-        event_loss = -torch.sum(event_ll - non_event_ll)
+        event_loss_sum = -torch.sum(event_ll - non_event_ll)
 
         # type prediction
-        pred_loss, pred_num_event = Utils.type_loss(prediction[0], event_type, pred_loss_func)
+        pred_loss_sum, pred_num_event = Utils.type_loss(prediction[0], event_type, pred_loss_func)
 
         # time prediction
-        se = Utils.time_loss(prediction[1], event_time)
+        se_sum = Utils.time_loss(prediction[1], event_time, event_type)
+
+        event_loss = Utils.batch_invariant_event_loss(event_ll, non_event_ll, event_type)
+        pred_loss = Utils.batch_invariant_type_loss(prediction[0], event_type, pred_loss_func, event_type)
+        se = Utils.batch_invariant_time_loss(prediction[1], event_time, event_type)
 
         # Loss stability: check and scale extreme values
         event_loss = torch.clamp(event_loss, min=-1e6, max=1e6)
@@ -247,9 +251,6 @@ def train_epoch(model, training_data, optimizer, pred_loss_func, opt):
         if torch.isnan(loss) or torch.isinf(loss):
             print(f"Warning: Invalid loss before backward, using fallback")
             loss = torch.tensor(1.0, device=loss.device, requires_grad=True)
-        #print(event_loss, pred_loss, se)
-        #loss = pred_loss
-        #loss = 1000*se
         loss.backward()
 
         """ update parameters with gradient clipping """
@@ -276,8 +277,8 @@ def train_epoch(model, training_data, optimizer, pred_loss_func, opt):
                         param.data.fill_(0.01)
 
         """ note keeping """
-        total_event_ll += -event_loss.item()
-        total_time_se += se.item()
+        total_event_ll += -event_loss_sum.item()
+        total_time_se += se_sum.item()
         total_event_rate += pred_num_event.item()
         total_num_event += event_type.ne(Constants.PAD).sum().item()
         # we do not predict the first event
@@ -313,7 +314,7 @@ def eval_epoch(model, validation_data, pred_loss_func, opt):
             event_ll, non_event_ll = Utils.log_likelihood(model, enc_out, event_time, event_type, opt.model_type)
             event_loss = -torch.sum(event_ll - non_event_ll)
             _, pred_num = Utils.type_loss(prediction[0], event_type, pred_loss_func)
-            se = Utils.RMSE_loss(prediction[1], event_time)
+            se = Utils.RMSE_loss(prediction[1], event_time, event_type)
 
             """ note keeping """
             total_event_ll += -event_loss.item()
@@ -412,7 +413,7 @@ def get_experiment_configs():
             'n_head': 6,
             'n_layers': 4,
             'lr': 1e-4,
-            'test_types': ['OOD']
+            'test_types': ['OOD'],
         },
         'SO': {
             'file': 'data/data_so/fold3/',
@@ -424,7 +425,7 @@ def get_experiment_configs():
             'n_head': 4,
             'n_layers': 4,
             'lr': 1e-4,
-            'test_types': ['OOD']
+            'test_types': ['OOD'],
         },
         'Synthetic': {
             'file': 'data/data_hawkes/',
@@ -436,7 +437,7 @@ def get_experiment_configs():
             'n_head': 3,
             'n_layers': 4,
             'lr': 1e-4,
-            'test_types': ['OOD']
+            'test_types': ['OOD'],
         },
         'Retweet': {
             'file': 'data/data_retweet/',
@@ -448,7 +449,7 @@ def get_experiment_configs():
             'n_head': 3,
             'n_layers': 4,
             'lr': 1e-2,  # Note: automatically adjusted to 1e-3 during execution for numerical stability
-            'test_types': ['OOD']
+            'test_types': ['OOD'],
         },
         'Mimic': {
             'file': 'data/data_mimic/fold1/',
@@ -460,13 +461,13 @@ def get_experiment_configs():
             'n_head': 3,
             'n_layers': 4,
             'lr': 5e-4,
-            'test_types': ['OOD']
+            'test_types': ['OOD'],
         }
     }
     
     return configs
 
-def run_single_experiment(dataset_name, config, model_type='Mamba_pure', epochs=40, beta=1.0, gamma=1e-4):
+def run_single_experiment(dataset_name, config, model_type='Mamba_pure', epochs=40, beta=1.0, gamma=1e-4, batch_size=None):
     """ Run a single experiment with given configuration """
     
     print(f"\n{'='*60}")
@@ -486,7 +487,7 @@ def run_single_experiment(dataset_name, config, model_type='Mamba_pure', epochs=
     opt = Opt()
     opt.data = config['file']
     opt.epoch = epochs
-    opt.batch_size = config['batchsize']
+    opt.batch_size = batch_size if batch_size is not None else config['batchsize']
     opt.d_model = config['d_model']
     opt.d_rnn = 256
     opt.d_inner_hid = config['d_inner']
@@ -622,29 +623,30 @@ def mhp_train_epoch(model, training_data, optimizer, pred_loss_func, opt):
         """ backward """
         # negative log-likelihood
         event_ll, non_event_ll = Utils.log_likelihood(model, enc_out, event_time, event_type, opt.model_type)
-        event_loss = -torch.sum(event_ll - non_event_ll)
+        event_loss_sum = -torch.sum(event_ll - non_event_ll)
 
         # type prediction
-        pred_loss, pred_num_event = Utils.type_loss(prediction[0], event_type, pred_loss_func)
+        pred_loss_sum, pred_num_event = Utils.type_loss(prediction[0], event_type, pred_loss_func)
 
         # time prediction
-        se = Utils.time_loss(prediction[1], event_time)
+        se_sum = Utils.time_loss(prediction[1], event_time, event_type)
+
+        event_loss = Utils.batch_invariant_event_loss(event_ll, non_event_ll, event_type)
+        pred_loss = Utils.batch_invariant_type_loss(prediction[0], event_type, pred_loss_func, event_type)
+        se = Utils.batch_invariant_time_loss(prediction[1], event_time, event_type)
 
         # SE is usually large, scale it to stabilize training
         scale_time_loss = 10000
         scale_event_loss = 1.5
         loss = event_loss + pred_loss / scale_event_loss + se / scale_time_loss
-        #print(event_loss, pred_loss, se)
-        #loss = pred_loss
-        #loss = 1000*se
         loss.backward()
 
         """ update parameters """
         optimizer.step()
 
         """ note keeping """
-        total_event_ll += -event_loss.item()
-        total_time_se += se.item()
+        total_event_ll += -event_loss_sum.item()
+        total_time_se += se_sum.item()
         total_event_rate += pred_num_event.item()
         total_num_event += event_type.ne(Constants.PAD).sum().item()
         # we do not predict the first event
@@ -677,7 +679,7 @@ def mhp_eval_epoch(model, validation_data, pred_loss_func, opt):
             event_ll, non_event_ll = Utils.log_likelihood(model, enc_out, event_time, event_type, opt.model_type)
             event_loss = -torch.sum(event_ll - non_event_ll)
             _, pred_num = Utils.type_loss(prediction[0], event_type, pred_loss_func)
-            se = Utils.RMSE_loss(prediction[1], event_time)
+            se = Utils.RMSE_loss(prediction[1], event_time, event_type)
 
             """ note keeping """
             total_event_ll += -event_loss.item()
@@ -744,7 +746,7 @@ def mhp_train(model, training_data, validation_data, optimizer, scheduler, pred_
             .format(epoch=100, ll=max(valid_event_losses), acc=max(valid_pred_losses), rmse=min(valid_rmse)))
 
 
-def mhp_run_single_experiment(dataset_name, config, model_type='Mamba_pure', epochs=40):
+def mhp_run_single_experiment(dataset_name, config, model_type='Mamba_pure', epochs=40, batch_size=None):
     """ Run a single MHP experiment with given configuration """
 
     print(f"\n{'='*60}")
@@ -760,7 +762,7 @@ def mhp_run_single_experiment(dataset_name, config, model_type='Mamba_pure', epo
     opt = Opt()
     opt.data = config['file']
     opt.epoch = epochs
-    opt.batch_size = config['batchsize']
+    opt.batch_size = batch_size if batch_size is not None else config['batchsize']
     opt.d_model = config['d_model']
     opt.d_rnn = 256
     opt.d_inner_hid = config['d_inner']
@@ -843,6 +845,7 @@ def mhp_run_single_experiment(dataset_name, config, model_type='Mamba_pure', epo
         traceback.print_exc()
 
 
+
 def main():
     """ Main function - Run experiments with optional dataset selection """
     
@@ -862,9 +865,13 @@ def main():
                        help='Cross-validation fold number (1-5). If not specified, uses default fold.')
     parser.add_argument('--epochs', type=int, default=40,
                        help='Number of training epochs (default: 40)')
+    parser.add_argument('--batch_size', type=int, default=None,
+                       help='Override per-dataset batch size (default: use dataset default)')
     args = parser.parse_args()
     
-    print("Starting A-MHP (Adaptive Mamba Hawkes Process) Experiments")
+    model_label = {'amhp': 'A-MHP (Adaptive Mamba Hawkes Process)',
+                   'mhp': 'MHP (Mamba Hawkes Process)'}
+    print(f"Starting {model_label.get(args.model, args.model)} Experiments")
     print("=" * 70)
     
     # Get all experiment configurations
@@ -909,10 +916,12 @@ def main():
             
             try:
                 if args.model == 'mhp':
-                    mhp_run_single_experiment(dataset_name, config, model_type, epochs=args.epochs)
+                    mhp_run_single_experiment(dataset_name, config, model_type,
+                                              epochs=args.epochs, batch_size=args.batch_size)
                 else:
                     run_single_experiment(dataset_name, config, model_type, epochs=args.epochs,
-                                        beta=args.beta, gamma=args.gamma)
+                                          beta=args.beta, gamma=args.gamma,
+                                          batch_size=args.batch_size)
             except KeyboardInterrupt:
                 print("\nExperiments interrupted by user")
                 return

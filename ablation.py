@@ -164,13 +164,17 @@ def train_epoch(model, training_data, optimizer, pred_loss_func, opt):
         """ backward """
         # negative log-likelihood
         event_ll, non_event_ll = Utils.log_likelihood(model, enc_out, event_time, event_type, opt.model_type)
-        event_loss = -torch.sum(event_ll - non_event_ll)
+        event_loss_sum = -torch.sum(event_ll - non_event_ll)
 
         # type prediction
-        pred_loss, pred_num_event = Utils.type_loss(prediction[0], event_type, pred_loss_func)
+        pred_loss_sum, pred_num_event = Utils.type_loss(prediction[0], event_type, pred_loss_func)
 
         # time prediction
-        se = Utils.time_loss(prediction[1], event_time)
+        se_sum = Utils.time_loss(prediction[1], event_time, event_type)
+
+        event_loss = Utils.batch_invariant_event_loss(event_ll, non_event_ll, event_type)
+        pred_loss = Utils.batch_invariant_type_loss(prediction[0], event_type, pred_loss_func, event_type)
+        se = Utils.batch_invariant_time_loss(prediction[1], event_time, event_type)
 
         # Loss stability: check and scale extreme values
         event_loss = torch.clamp(event_loss, min=-1e6, max=1e6)
@@ -214,8 +218,8 @@ def train_epoch(model, training_data, optimizer, pred_loss_func, opt):
                         param.data.fill_(0.01)
 
         """ note keeping """
-        total_event_ll += -event_loss.item()
-        total_time_se += se.item()
+        total_event_ll += -event_loss_sum.item()
+        total_time_se += se_sum.item()
         total_event_rate += pred_num_event.item()
         total_num_event += event_type.ne(Constants.PAD).sum().item()
         # we do not predict the first event
@@ -251,7 +255,7 @@ def eval_epoch(model, validation_data, pred_loss_func, opt):
             event_ll, non_event_ll = Utils.log_likelihood(model, enc_out, event_time, event_type, opt.model_type)
             event_loss = -torch.sum(event_ll - non_event_ll)
             _, pred_num = Utils.type_loss(prediction[0], event_type, pred_loss_func)
-            se = Utils.RMSE_loss(prediction[1], event_time)
+            se = Utils.RMSE_loss(prediction[1], event_time, event_type)
 
             """ note keeping """
             total_event_ll += -event_loss.item()
