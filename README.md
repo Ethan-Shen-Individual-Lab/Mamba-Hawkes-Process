@@ -2,8 +2,6 @@
 
 Code for our WWW 2026 paper: [Mamba Hawkes Process for Event Sequence Modeling](https://dl.acm.org/doi/abs/10.1145/3774904.3792583).
 
-**Release v1.1.0**
-
 ## Overview
 
 This repository implements A-MHP and MHP. This is a **new release** intended for research reproduction. The current codebase includes a vendored copy of the **Mamba** implementation (and a Transformer module).
